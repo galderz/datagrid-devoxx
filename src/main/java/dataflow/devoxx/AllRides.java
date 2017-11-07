@@ -59,17 +59,6 @@ public class AllRides {
   // "passenger_count":2
   // }
 
-  private static class PassThroughAllRides extends DoFn<TableRow, TableRow> {
-    PassThroughAllRides() {}
-
-    @Override
-    public void processElement(ProcessContext c) {
-      TableRow ride = c.element();
-
-      c.output(ride);
-    }
-  }
-
   public static void main(String[] args) {
     CustomPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(CustomPipelineOptions.class);
@@ -80,24 +69,23 @@ public class AllRides {
         .timestampLabel("ts")
         .withCoder(TableRowJsonCoder.of()))
 
-     // A Parallel Do (ParDo) transforms data elements one by one.
-     // It can output zero, one or more elements per input element.
-     .apply("pass all rides through 1", ParDo.of(new PassThroughAllRides()))
-
-     // In Java 8 you can also use a simpler syntax through MapElements.
-     // MapElements allows a single output element per input element.
-     .apply("pass all rides through 2",
-        MapElements.via((TableRow e) -> e).withOutputType(TypeDescriptor.of(TableRow.class)))
-
      // In java 8, if you need to return zero one or more elements per input, you can use
      // the FlatMapElements syntax. It expects you to return an iterable and will
      // gather all of its values into the output PCollection.
-     .apply("pass all rides through 3",
+     .apply("filter south manhattan rides",
         FlatMapElements.via(
           (TableRow e) -> {
+            // Access to data fields:
+            float lat = Float.parseFloat(e.get("latitude").toString());
+            float lon = Float.parseFloat(e.get("longitude").toString());
+
+            // coordinates of south Manhattan
+            boolean sm = lon > -74.747 && lon < -73.969 && lat > 40.699 && lat < 40.720;
+
             List<TableRow> a = new ArrayList<>();
-              a.add(e);
-              return a;
+            if (sm) a.add(e);
+
+            return a;
             })
         .withOutputType(TypeDescriptor.of(TableRow.class)))
 
